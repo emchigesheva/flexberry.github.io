@@ -90,6 +90,8 @@ export let defineProjections = function (modelClass) {
 Модели определяются ["стандартным" для Ember способом](https://guides.emberjs.com/v3.4.0/models/defining-models/). Импорты и экспорт соответствуют требованиям синтаксиса [ember-cli](http://ember-cli.com).
 Создаваемая модель наследуется от [базового технологического класса](https://github.com/Flexberry/ember-flexberry-data/blob/develop/addon/models/model.js), определенного в аддоне [`ember-flexberry-data`](https://github.com/Flexberry/ember-flexberry-data). Дополнительно в моделях, унаследованных от базовой технологической модели, используются [правила валидации модели](efd3_model-validation.html).
 
+{% include warning.html content="Для **каждой** модели должен быть описан [сериализатор](efd3_serializer.html) для корректного взаимодействия с сервером." %}
+
 Если у модели есть класс-предок, то для класса-потомка объявление модели будет чуть отличаться:
 
 ```js
@@ -137,7 +139,57 @@ export let defineBaseModel = function (modelClass) {
 ```
 
 ## Правила генерации атрибутов и связей в модели
-## Дополнительные трансформации Flexberry Ember
+Атрибуты в моделях определяются ["стандартным" для Ember способом](https://guides.emberjs.com/v3.4.0/models/defining-models/#toc_defining-attributes), [также как и связи](https://guides.emberjs.com/v3.4.0/models/relationships/).
+
+```js
+export let Model = Mixin.create({
+  // Определение собственных атрибутов.
+  doubleField: DS.attr('decimal'),
+  stringField: DS.attr('string'),
+
+  // Определение мастера.
+  myMaster: DS.belongsTo('i-i-s-gen-test-master-for-child1', { inverse: null, async: false }),
+
+  // Определение детейлов.
+  detail1ForChild1: DS.hasMany('i-i-s-gen-test-detail1-for-child1', { inverse: 'child1', async: false }),
+  detail2ForChild1: DS.hasMany('i-i-s-gen-test-detail2-for-child1', { inverse: 'child1', async: false })
+});
+```
+
+{% include important.html content="Имена свойств должны начинаться с маленькой буквы." %}
+
+### Генерируемые типы и трансформации
+Для атрибутов любых моделей `Ember` доступны встроенные типы данных `string` (строка), `number` (число), `boolean` (логический тип) и `date` (дата). Для определения других типов данных в моделях Ember используются [трансформации](https://guides.emberjs.com/v3.4.0/models/defining-models/#toc_transforms).
+
+Дополнительно к стандартным типам данных в аддоне `ember-flexberry-data` были добавлены трансформации `decimal` (вещественный тип), `file` (тип "Файл"), `flexberry-enum` (тип для перечислений), `guid` (тип "GUID", который используется по умолчанию для первичных ключей).
+
+Подробнее об использовании трансформаций для перечислений можно посмотреть [тут](efd3_enum.html).
+
+### inverse-связи в модели
+
+Задание [inverse-связи](https://guides.emberjs.com/v3.4.0/models/relationships/#toc_reflexive-relations) используется, например, при работе с детейлами.
+
+Задание связи от агрегатора к детейлу.
+
+```javascript
+export let Model = Mixin.create({
+  ...
+  detail1ForChild1: DS.hasMany('i-i-s-gen-test-detail1-for-child1', { inverse: 'child1', async: false }),
+});
+```
+
+Задание связи от детейла к агрегатору.
+
+```javascript
+export let Model = Mixin.create({
+  ...
+  child1: DS.belongsTo('i-i-s-gen-test-child1', { inverse: 'detail1ForChild1', async: false })
+});
+```
+
+## Первичный ключ в модели
+
+
 ## Представления в моделях. Особенности включения связей в представлениях
 ## Генерируемые сериализаторы для моделей
 ## Вспомогательный класс information?
