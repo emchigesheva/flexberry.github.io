@@ -20,7 +20,7 @@ export default DS.Model.extend({
 
 {% include note.html content="Генерируемые из [Flexberry Designer](fd_flexberry-designer.html) модели создаются в папку `models` и именуются следующим образом: если соответствующий C#-класс на [OData-бэкенде](fo_orm-odata-service.html) называется `NewPlatform.Someproject.Somemodel`, то файл с моделью в клиентском приложении должен называться `new-platform-someproject-somemodel`. Если на [OData-бэкенде](fo_orm-odata-service.html) используется атрибут [PublishName](fo_metadata-for-client.html) для упрощения именования моделей, то наименование пространства имен в этом случае в клиентской модели может отсутствовать (имя клиентской модели будет формироваться соответственно имени в EDM-модели на OData-бакенде)" %}
 
-## Базовые классы и миксины для моделей Flexberry Ember
+### Базовые классы и миксины для моделей Flexberry Ember
 Генерируемые из [Flexberry Designer](fd_flexberry-designer.html) модели чаще всего имеют следующую структуру
 
 ```js
@@ -92,6 +92,7 @@ export let defineProjections = function (modelClass) {
 
 {% include warning.html content="Для **каждой** модели должен быть описан [сериализатор](efd3_serializer.html) для корректного взаимодействия с сервером." %}
 
+### Объявление модели, имеющей предка
 Если у модели есть класс-предок, то для класса-потомка объявление модели будет чуть отличаться:
 
 ```js
@@ -187,10 +188,115 @@ export let Model = Mixin.create({
 });
 ```
 
-## Первичный ключ в модели
+### Первичный ключ в модели
+[Первичные ключи объекта](fo_primary-keys-objects.html) не задаются в модели явно.
+В клиентском коде обращения к первичному ключу можно выполнить через [свойство `id`](http://emberjs.com/api/data/classes/DS.Model.html#property_id). Как называется соответствующее свойство на сервере, определяется в [сериализаторе](efd3_serializer.html).
 
+```js
+import { Serializer as MasterForAgregatorSerializer } from
+  '../mixins/regenerated/serializers/i-i-s-gen-test-master-for-agregator';
+import __ApplicationSerializer from './application';
 
-## Представления в моделях. Особенности включения связей в представлениях
+export default __ApplicationSerializer.extend(MasterForAgregatorSerializer, {
+  /**
+  * Имя поля, где хранится первичный ключ модели.
+  */
+  primaryKey: '__PrimaryKey'
+});
+```
+
+Первичные ключи моделей в `Ember`-приложениях всегда являются строками, но на сервере [это поведение можно изменить](fo_primary-keys-objects.html). При изменении типа первичного ключа на сервере необходимо переопределить статическое свойство `idType` в классе модели:
+
+```javascript
+import EmberFlexberryDataModel from 'ember-flexberry-data/models/model';
+
+...
+
+let Model = EmberFlexberryDataModel.extend( ... );
+
+...
+
+Model.reopenClass({
+  idType: '...',
+});
+
+export default Model;
+```
+
+Устанавливается свойство `idType` при помощи статической функции `defineIdType` в базовой технологической модели:
+
+```javascript
+defineIdType: function (newIdType) {
+  this.reopenClass({
+    idType: newIdType,
+  });
+},
+```
+
+Вызвать этот метод можно следующим образом:
+
+```javascript
+Model.defineIdType('string');
+```
+
+Тип первичного ключа - это метаданные модели, поэтому свойство `idType` определено именно в модели, а не, например, в адаптере.
+
+Получить тип ключа можно через метод [`getMeta` утилиты `information`](https://github.com/Flexberry/ember-flexberry-data/blob/develop/addon/utils/information.js) из аддона `ember-flexberry-data`.
+
+В языке запросов тип ключа учитывается автоматически, и при построении запросов к OData-бакенду значения ключей в URL запросов "окавычиваются" только в том случае, если тип ключа `string`.
+
+{% include important.html content="На данный момент поддерживается 3 типа ключей в клиентской части: `string`, `guid` и `number`. В других случаях при построении запросов к OData-бакенду будет выбрасываться исключение." %}
+
+{% include note.html content="По умолчанию в клиентской модели в качестве типа первичного ключа используется `guid`." %}
+
+## Проекции в моделях
+Проекции используются для определения, какие свойства будут запрошены с сервера или отправлены на него. Определение проекций для модели осуществляется следующим образом:
+
+```javascript
+Model.defineProjection('<Имя проекции>', '<Имя класса>', '<Атрибуты проекции>');
+```
+
+* Имя проекции может быть произвольным. Чаще всего для форм редактирования используют представления с именем "<Короткое имя класса>E", а для списковых форм - "<Короткое имя класса>L" (например, для модели `new-platform-gen-test-agregator-class` это будут `AgregatorClassE` и `AgregatorClassL`).
+* Имя класса - это имя текущего класса, для которого определяется модель. Например, `new-platform-someproject-somemodel`.
+* Атрибуты проекции - это атрибуты модели и зависимых моделей, которые входят в проекцию.
+
+В примере ниже для модели `i-i-s-gen-test-agregator-class` определяется проекция `AgregatorClassE`.
+
+```js
+// Для модели i-i-s-gen-test-agregator-class определяется проекция AgregatorClassE.
+modelClass.defineProjection('AgregatorClassE', 'i-i-s-gen-test-agregator-class', {
+    // Добавлен атрибут перечислимого типа.
+    enum1Field: attr('Перечисление 1', { index: 0 }),
+
+    // Добавлена ссылка на мастера типа i-i-s-gen-test-child2.
+    child2: belongsTo('i-i-s-gen-test-child2', 'Мастер потомок', {
+      dateTimeField: attr('~', { index: 2, hidden: true })
+    }, { index: 1, displayMemberPath: 'dateTimeField' }),
+
+    // Добавлена ссылка на мастера типа i-i-s-gen-test-master-for-agregator.
+    masterForAgregator: belongsTo('i-i-s-gen-test-master-for-agregator', 'Master for agregator', {
+      enum2Field: attr('~', { index: 4, hidden: true })
+    }, { index: 3, displayMemberPath: 'enum2Field' }),
+
+    // Добавлена ссылка на детейл типа i-i-s-gen-test-detail-for-agregator.
+    detailForAgregator: hasMany('i-i-s-gen-test-detail-for-agregator', 'Детейл агрегатора', {
+      // Добавлен атрибут детейла целого типа.
+      detailIntField: attr('Целое', { index: 0 }),
+
+      // Добавлена ссылка на мастера детейла типа i-i-s-gen-test-master-for-agregator.
+      masterForAgregator: belongsTo('i-i-s-gen-test-master-for-agregator', 'Мастеровое', {
+        enum2Field: attr('~', { index: 2, hidden: true })
+      }, { index: 1, displayMemberPath: 'enum2Field' })
+    })
+  });
+```
+
+* `enum1Field: attr('Перечисление 1', { index: 0 })` - в проекцию модели `i-i-s-gen-test-agregator-class` добавляется свойство `enum1Field` модели `i-i-s-gen-test-agregator-class` с заголовком `Перечисление 1`.
+* `child2: belongsTo('i-i-s-gen-test-child2', 'Мастер потомок', { ... }, { index: 1, displayMemberPath: 'dateTimeField' })` - в проекцию модели `i-i-s-gen-test-agregator-class` добавляется ссылка на мастера `child2`  типа `i-i-s-gen-test-child2` с заголовком 'Мастер потомок', при этом на форме у данного свойства будет отображаться атрибут мастера `dateTimeField`. Сам же атрибут мастера `dateTimeField`, добавляемый кодом `dateTimeField: attr('~', { index: 2, hidden: true })`, скрыт (такое скрытие свойств мастеров часто используется для работы [лукапов](efd3_lookup.html))
+* `detailForAgregator: hasMany('i-i-s-gen-test-detail-for-agregator', 'Детейл агрегатора', { ... })` - в проекцию модели `i-i-s-gen-test-agregator-class` добавляется ссылка на детейлы `detailForAgregator` типа  `i-i-s-gen-test-detail-for-agregator` с заголовком 'Детейл агрегатора'. Из детейлов в представление попадают собственные свойства детейла, а также ссылка на мастера детейлов.
+
+{% include important.html content="В связи с тем, что при наличии детейлов в проекции также указываются и собственные свойства детейлов, при изменении представления детейлов во [Flexberry Designer](fd_flexberry-designer.html) и последующей перегенерации требуется произвести перегенерацию как самих детейлов, так и агрегатора, чтобы проекция агрегатора обновилась правильно." %}
+
 ## Генерируемые сериализаторы для моделей
 ## Вспомогательный класс information?
 ## Вспомогательные модели Flexberry Ember
